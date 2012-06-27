@@ -1,0 +1,27 @@
+<div class="top">
+  <img src="themes/default/img/medlogo.png"/>
+  <div class="logo">Pineapple <br> <div class="sublogo">A simple, modular, JavaScript cms</div></div>
+  <div class="menu">
+    {{#titles}}<div class="msingle"><a href="#{{title}}">{{title}}</a></div>{{/titles}}
+  </div>
+  <div style="clear: both"></div>
+</div>
+
+<div class="container">
+
+  <div class="allbox">
+    <h1 id="title"></h1>
+    <div id="content">{{{text}}}</div>
+  </div>
+
+  <div style="clear: both"></div>
+</div>
+
+<div class="footer">
+  <div class="mylogo" onclick="window.open('https://twitter.com/#!/DiegoPQ_')"></div>
+</div>
+
+<!-- {{#titles}}
+<a href="#{{title}}">{{title}}</a>
+{{/titles}}<br />
+<div id="lal">{{{text}}}</div> -->
