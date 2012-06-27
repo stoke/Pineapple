@@ -1,4 +1,1 @@
-Pineapple
-=========
-
-Tiny modular JavaScript cms
+**INDEV**
