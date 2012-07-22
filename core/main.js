@@ -1,43 +1,35 @@
-function getValues(obj) {
-  var values = [];
-  for (var i in obj) {
-    if (obj.hasOwnProperty(i))
-      values.push(obj[i]);
-  }
-
-  return values;
-}
-
 require(['config.js', 'core/util.js'], function(config, util) {
-  
   if (typeof config.scripts !== 'object')
     config.scripts = [];
 
   if (typeof config.plugins !== 'object')
     config.plugins = {};
-  
-  require(['require', 'themes/'+config.theme+'/index.js'], function(require, t) {
+
+  require(['require', 'themes/'+config.theme+'/index.js', config.engine || 'core/jsonengine.js'], function(require, theme, Engine) {
     var head = document.getElementsByTagName('head')[0],
         plugins = Object.keys(config.plugins).map(function(x) {
           return "../plugins/"+x;
         });
 
-    if (typeof t.scripts !== 'object')
-      t.scripts = []
+    Engine = Engine.engine;
+    var engine = new Engine(util);
 
-    if (typeof t.css !== 'object')
-      t.css = [];
+    if (typeof theme.scripts !== 'object')
+      theme.scripts = [];
 
-    t.scripts = t.scripts.map(function(x) {
+    if (typeof theme.css !== 'object')
+      theme.css = [];
+
+    theme.scripts = theme.scripts.map(function(x) {
       return 'themes/'+config.theme+'/scripts/'+x;
     });
 
-    t.scripts = t.scripts.concat(config.scripts);
+    theme.scripts = theme.scripts.concat(config.scripts);
 
-    if (typeof t.beforeload === 'function')
-      t.beforeload();
+    if (typeof theme.beforeload === 'function')
+      theme.beforeload();
 
-    t.css.forEach(function(x) {
+    theme.css.forEach(function(x) {
       var link = document.createElement('link');
       link.rel = 'stylesheet';
       link.href = 'themes/'+config.theme+'/css/'+x;
@@ -47,76 +39,71 @@ require(['config.js', 'core/util.js'], function(config, util) {
     if (typeof config.middleware !== 'object')
       config.middleware = [];
     
-    require(t.scripts.concat(plugins), function() {
+    require(theme.scripts.concat(plugins), function() {
       var args = Array.prototype.slice.call(arguments);
-      util.getPages(['db.json', 'themes/'+config.theme+'/'+t.body], function(reqs) {
+      util.getPages(['themes/'+config.theme+'/'+theme.body], function(reqs) {
         var index = config.index || 'index',
-            db = JSON.parse(reqs['db.json'].responseText),
-            template = reqs['themes/'+config.theme+'/'+t.body].responseText,
-            values = getValues(config.plugins),
-            view = {}, plugs = [], r;
-
-
-        values = values.map(function(x) {
-          return {title: x};
-        });
-
+            template = reqs['themes/'+config.theme+'/'+theme.body].responseText,
+            plugins = Object.keys(config.plugins),
+            view = {};
 
         if (location.hash.substring(1))
-          index = location.hash.substring(1)
+            index = location.hash.substring(1);
 
-        view.pages = db;
-        view.titles = [];
-        
-        for (var i in db) {
-          if (db.hasOwnProperty(i)) {
-            view.titles.push({title: i});
+        engine.getPages(function(pages) {
+          view.pages = pages;
+          view.titles = [];
+
+          plugins = plugins.map(function(x) {
+            return {title: x};
+          });
+          
+          Object.keys(pages).forEach(function(x) {
+            view.titles.push({title: x});
+          });
+
+          view.titles = view.titles.concat(plugins);
+
+          if (args.length > theme.scripts.length) {
+            config.plugins = {};
+
+            for (var i = theme.scripts.length; i < args.length; i++)
+              config.plugins[plugins[i-theme.scripts.length].title] = args[i];
           }
-        }
 
-        console.dir(getValues(config.plugins));
-        view.titles = view.titles.concat(values);
+          config.theme = theme;
 
-        if (args.length > t.scripts.length) {
-          config.plugins = {};
+          window.pineapple = {
+            template: template,
+            view: view,
+            config: config,
+            util: util,
+            engine: engine
+          };
 
-          for (var i = t.scripts.length; i < args.length; i++)
-            config.plugins[values[i-t.scripts.length].title] = args[i];
-        }
+          if (typeof theme.afterload === 'function')
+            theme.afterload();
 
-
-        config.t = t;
-
-        window.pineapple = {
-          template: template,
-          view: view,
-          config: config,
-          util: util
-        };
-
-        if (typeof t.afterload === 'function')
-          t.afterload();
-
-        if (typeof pineapple.config.t.beforechange !== 'function') {
-          pineapple.config.t.beforechange = function(page, callback) {
-            callback();
+          if (typeof pineapple.config.theme.beforechange !== 'function') {
+            pineapple.config.theme.beforechange = function(page, callback) {
+              callback();
+            }
           }
-        }
 
-        changePage(index, true);
+          changePage(index, true);
+        });
       });
     });
   });
 });
 
 function changePage(page, f) {
-  if (!(page in pineapple.view.pages) && !(page in pineapple.config.plugins)) {
+  if (!~Object.keys(pineapple.view.pages).indexOf(page) && !~Object.keys(pineapple.config.plugins).indexOf(page)) {
     return; // TODO: 404 error
   }
 
-  pineapple.config.t.beforechange(page, function() {
-    console.log("asd");
-    if (page in pineapple.config.plugins) // Current page is managed by a plugin
+  pineapple.config.theme.beforechange(page, function() {
+    if (~Object.keys(pineapple.config.plugins).indexOf(page)) // Current page is managed by a plugin
       pineapple.view.pages[page] = pineapple.config.plugins[page].main(page);
 
     for (var i = 0; i<pineapple.view.titles.length; i++) {
@@ -124,24 +111,23 @@ function changePage(page, f) {
         pineapple.view.titles[i].current = true;
     }
 
-
     for (var i = 0; i<pineapple.config.middleware.length; i++)
       pineapple.view.pages[page] = pineapple.config.middleware[i](pineapple.view.pages[page]);
 
-    r = pineapple.config.t.render(pineapple.template, pineapple.view, page);
+    var r = pineapple.config.theme.render(pineapple.template, pineapple.view, page);
 
-    if (f || typeof pineapple.config.t.cid === 'undefined')
+    if (f || typeof pineapple.config.theme.cid === 'undefined')
       document.getElementsByTagName("body")[0].innerHTML = r;
     else
-      document.getElementById(pineapple.config.t.cid).innerHTML = pineapple.view.pages[page];
+      document.getElementById(pineapple.config.theme.cid).innerHTML = pineapple.view.pages[page];
 
 
-    if (typeof pineapple.config.t.afterchange === 'function')
-      pineapple.config.t.afterchange(page);
+    if (typeof pineapple.config.theme.afterchange === 'function')
+      pineapple.config.theme.afterchange(page);
   });
 }
 
 window.onhashchange = function() {
-  hash = location.hash.substring(1);
+  var hash = location.hash.substring(1);
   changePage(hash);
 }
