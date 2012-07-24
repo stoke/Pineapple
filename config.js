@@ -10,5 +10,8 @@ define({
   theme: 'default',
   scripts: ['scripts/markdown.js'],
   middleware: [markdown],
+  plugins: {
+    'blag': 'blag'
+  },
   engine: 'core/jsonengine.js'
 });

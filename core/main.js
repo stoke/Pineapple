@@ -90,44 +90,63 @@ require(['config.js', 'core/util.js'], function(config, util) {
             }
           }
 
-          changePage(index, true);
+          loadPage(index, true);
         });
       });
     });
   });
 });
 
-function changePage(page, f) {
-  if (!~Object.keys(pineapple.view.pages).indexOf(page) && !~Object.keys(pineapple.config.plugins).indexOf(page)) {
+function loadPage(page, f) {
+  var args = page.split('/');
+  
+  page = args.shift();
+  
+  if (!args.length)
+    args = undefined;
+
+  if (!~Object.keys(pineapple.view.pages).indexOf(page) && !~Object.keys(pineapple.config.plugins).indexOf(page))
     return; // TODO: 404 error
-  }
 
   pineapple.config.theme.beforechange(page, function() {
-    if (~Object.keys(pineapple.config.plugins).indexOf(page)) // Current page is managed by a plugin
-      pineapple.view.pages[page] = pineapple.config.plugins[page].main(page);
-
     for (var i = 0; i<pineapple.view.titles.length; i++) {
       if (pineapple.view.titles[i].title === page)
         pineapple.view.titles[i].current = true;
     }
 
-    for (var i = 0; i<pineapple.config.middleware.length; i++)
-      pineapple.view.pages[page] = pineapple.config.middleware[i](pineapple.view.pages[page]);
+    if (~Object.keys(pineapple.config.plugins).indexOf(page)) { // Current page is managed by a plugin
+      if (pineapple.config.plugins[page].async) {
+        return pineapple.config.plugins[page].main(page, args, render.bind(this, page, f));
+      } else {
+        pineapple.view.pages[page] = pineapple.config.plugins[page].main(page, args);
+        return render(page, f);
+      }
+    }
 
-    var r = pineapple.config.theme.render(pineapple.template, pineapple.view, page);
-
-    if (f || typeof pineapple.config.theme.cid === 'undefined')
-      document.getElementsByTagName("body")[0].innerHTML = r;
-    else
-      document.getElementById(pineapple.config.theme.cid).innerHTML = pineapple.view.pages[page];
-
-
-    if (typeof pineapple.config.theme.afterchange === 'function')
-      pineapple.config.theme.afterchange(page);
+    render(page, f);
   });
+}
+
+function render(page, f, content) {
+  if (content) // Coming from an async plugin
+    pineapple.view.pages[page] = content;
+
+  for (var i = 0; i<pineapple.config.middleware.length; i++)
+    pineapple.view.pages[page] = pineapple.config.middleware[i](pineapple.view.pages[page]);
+
+  var r = pineapple.config.theme.render(pineapple.template, pineapple.view, page);
+
+  if (f || typeof pineapple.config.theme.cid === 'undefined')
+    document.getElementsByTagName("body")[0].innerHTML = r;
+  else
+    document.getElementById(pineapple.config.theme.cid).innerHTML = pineapple.view.pages[page];
+
+
+  if (typeof pineapple.config.theme.afterchange === 'function')
+    pineapple.config.theme.afterchange(page);
 }
 
 window.onhashchange = function() {
   var hash = location.hash.substring(1);
-  changePage(hash);
+  loadPage(hash);
 }
