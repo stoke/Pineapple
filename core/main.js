@@ -134,7 +134,7 @@ function render(page, f, content) {
   for (var i = 0; i<pineapple.config.middleware.length; i++)
     pineapple.view.pages[page] = pineapple.config.middleware[i](pineapple.view.pages[page]);
 
-  var r = pineapple.config.theme.render(pineapple.template, pineapple.view, page);
+  var r = pineapple.config.theme.render(pineapple.template, pineapple.view, page, pineapple);
 
   if (f || typeof pineapple.config.theme.cid === 'undefined')
     document.getElementsByTagName("body")[0].innerHTML = r;
